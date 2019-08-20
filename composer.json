@@ -1,0 +1,30 @@
+{
+  "name": "swover/pool",
+  "description": "A connection-pool based on Swoole Coroutine",
+  "keywords": [
+    "swoole",
+    "pool",
+    "connection-pool"
+  ],
+  "homepage": "https://github.com/swover",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Ruesin Liu",
+      "email": "ruesin@gmail.com"
+    }
+  ],
+  "require": {
+  },
+  "require-dev": {
+  },
+  "autoload": {
+    "psr-4": {
+      "Swover\\Pool\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+    }
+  }
+}
