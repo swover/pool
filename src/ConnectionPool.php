@@ -24,6 +24,11 @@ class ConnectionPool
     /**
      * @var int
      */
+    private $bufferSize = 0;
+
+    /**
+     * @var int
+     */
     private $waitTime = 5;
 
     /**
@@ -68,6 +73,7 @@ class ConnectionPool
     {
         $this->minSize = $poolConfig['minSize'] ?? 3;
         $this->maxSize = $poolConfig['maxSize'] ?? 50;
+        $this->bufferSize = $poolConfig['bufferSize'] ?? 0;
         $this->waitTime = $poolConfig['waitTime'] ?? 5;
         $this->idleTime = $poolConfig['idleTime'] ?? 120;
 
@@ -118,7 +124,7 @@ class ConnectionPool
             return false;
         }
 
-        if ($this->connectionCount > $this->minSize + 1 //TODO
+        if ($this->connectionCount > $this->minSize + ($this->bufferSize ? : ceil(($this->maxSize - $this->minSize) / 2))
             && !$this->channel->isEmpty()) {
             $this->removeConnection($connection);
             return false;
