@@ -22,11 +22,6 @@ class ConnectionPool
     /**
      * @var int
      */
-    private $bufferSize = 0;
-
-    /**
-     * @var int
-     */
     private $waitTime = 5;
 
     /**
@@ -74,7 +69,6 @@ class ConnectionPool
     {
         $this->minSize = $poolConfig['minSize'] ?? 3;
         $this->maxSize = $poolConfig['maxSize'] ?? 50;
-        $this->bufferSize = $poolConfig['bufferSize'] ?? 0;
         $this->waitTime = $poolConfig['waitTime'] ?? 5;
         $this->idleTime = $poolConfig['idleTime'] ?? 120;
 
