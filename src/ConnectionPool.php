@@ -9,8 +9,6 @@ class ConnectionPool
 {
     private $releaseLock = false;
 
-    const LAST_ACTIVE_TIME_KEY = '__last_active_time'; //TODO
-
     const CHANNEL_TIMEOUT = 0.001;
 
     /**
@@ -90,30 +88,26 @@ class ConnectionPool
             return $this->createConnection();
         }
 
-        $connection = $this->channel->pop($this->waitTime);
+        $connector = $this->channel->pop($this->waitTime);
 
-        $lastActiveTime = $connection->{static::LAST_ACTIVE_TIME_KEY} ?? 0;
-        if (time() - $lastActiveTime >= $this->idleTime
+        if (time() - $connector['active_time'] >= $this->idleTime
             && !$this->channel->isEmpty()) {
-            $this->removeConnection($connection);
+            $this->removeConnection($connector['instance']);
             return $this->getConnection();
         }
 
-        if ($connection === false) {
+        if ($connector === false) {
             throw new \Exception(sprintf('connection pop timeout, waitTime:%d, all connections: %d',
                 $this->waitTime, $this->connectionCount));
         }
 
-        $connection->{static::LAST_ACTIVE_TIME_KEY} = time();
-
-        return $connection;
+        return $connector['instance'];
     }
 
     public function createConnection()
     {
         $this->connectionCount++;
         $connection = $this->connector->connect($this->connectionConfig);
-        $connection->{static::LAST_ACTIVE_TIME_KEY} = time();
         return $connection;
     }
 
@@ -130,8 +124,11 @@ class ConnectionPool
             return false;
         }
 
-        $connection->{static::LAST_ACTIVE_TIME_KEY} = time();
-        if ($this->channel->push($connection, self::CHANNEL_TIMEOUT) === false) {
+        $connector = [
+            'active_time' => time(),
+            'instance' => $connection
+        ];
+        if ($this->channel->push($connector, self::CHANNEL_TIMEOUT) === false) {
             $this->removeConnection($connection);
             return false;
         }
