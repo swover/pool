@@ -124,10 +124,18 @@ class ConnectionPool
             return false;
         }
 
-        if ($this->connectionCount > $this->minSize + ($this->bufferSize ? : ceil(($this->maxSize - $this->minSize) / 2))
-            && !$this->channel->isEmpty()) {
-            $this->removeConnection($connection);
-            return false;
+        if ($this->connectionCount >= $this->minSize) {
+            if ($this->releaseLock === false) {
+                $this->releaseLock = true;
+                if (!$this->channel->isEmpty()) {
+                    $this->removeConnection($connection);
+                    $this->releaseLock = false;
+                    return false;
+                }
+            } else {
+                \co::sleep(0.1);
+                return $this->releaseConnection($connection);
+            }
         }
 
         $connector = [
