@@ -9,7 +9,7 @@ class ConnectionPool
 {
     private $releaseLock = false;
 
-    const LAST_ACTIVE_TIME_KEY = '__last_active_time';
+    const LAST_ACTIVE_TIME_KEY = '__last_active_time'; //TODO
 
     const CHANNEL_TIMEOUT = 0.001;
 
@@ -26,12 +26,12 @@ class ConnectionPool
     /**
      * @var int
      */
-    private $maxWaitTime = 10;
+    private $waitTime = 5;
 
     /**
      * @var int
      */
-    private $maxIdleTime = 120;
+    private $idleTime = 120;
 
     /**
      * @var ConnectorInterface
@@ -70,13 +70,13 @@ class ConnectionPool
     {
         $this->minSize = $poolConfig['minSize'] ?? 3;
         $this->maxSize = $poolConfig['maxSize'] ?? 50;
-        $this->maxWaitTime = $poolConfig['maxWaitTime'] ?? 5;
-        $this->maxIdleTime = $poolConfig['maxIdleTime'] ?? 120;
+        $this->waitTime = $poolConfig['waitTime'] ?? 5;
+        $this->idleTime = $poolConfig['idleTime'] ?? 120;
 
         $this->connectionConfig = $connectionConfig;
         $this->connector = $connector;
 
-        $this->channel = new Channel($this->maxSize + 1);
+        $this->channel = new Channel($this->maxSize);
     }
 
     public function getConnection()
@@ -90,10 +90,10 @@ class ConnectionPool
             return $this->createConnection();
         }
 
-        $connection = $this->channel->pop($this->maxWaitTime);
+        $connection = $this->channel->pop($this->waitTime);
 
         $lastActiveTime = $connection->{static::LAST_ACTIVE_TIME_KEY} ?? 0;
-        if (time() - $lastActiveTime >= $this->maxIdleTime
+        if (time() - $lastActiveTime >= $this->idleTime
             && !$this->channel->isEmpty()) {
             $this->removeConnection($connection);
             return $this->getConnection();
@@ -101,7 +101,7 @@ class ConnectionPool
 
         if ($connection === false) {
             throw new \Exception(sprintf('connection pop timeout, waitTime:%d, all connections: %d',
-                $this->maxWaitTime, $this->connectionCount));
+                $this->waitTime, $this->connectionCount));
         }
 
         $connection->{static::LAST_ACTIVE_TIME_KEY} = time();
