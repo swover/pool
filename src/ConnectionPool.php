@@ -7,8 +7,6 @@ use Swoole\Coroutine\Channel;
 
 class ConnectionPool
 {
-    private $releaseLock = false;
-
     const CHANNEL_TIMEOUT = 0.001;
 
     /**
@@ -56,11 +54,14 @@ class ConnectionPool
     private $connectionCount = 0;
 
     /**
-     * This connector pool
-     *
      * @var Channel
      */
     private $channel;
+
+    /**
+     * @var Channel
+     */
+    private $releaseLock;
 
     /**
      * ConnectionPool constructor.
@@ -81,6 +82,7 @@ class ConnectionPool
         $this->connector = $connector;
 
         $this->channel = new Channel($this->maxSize);
+        $this->releaseLock = new Channel(1);
     }
 
     public function getConnection()
@@ -124,17 +126,15 @@ class ConnectionPool
             return false;
         }
 
-        if ($this->connectionCount >= $this->minSize) {
-            if ($this->releaseLock === false) {
-                $this->releaseLock = true;
-                if (!$this->channel->isEmpty()) {
-                    $this->removeConnection($connection);
-                    $this->releaseLock = false;
-                    return false;
-                }
-            } else {
-                \co::sleep(0.1);
+        if ($this->connectionCount > $this->minSize) {
+            if ($this->releaseLock->push(1, self::CHANNEL_TIMEOUT) === false) {
                 return $this->releaseConnection($connection);
+            }
+
+            $this->releaseLock->pop(self::CHANNEL_TIMEOUT);
+            if (!$this->channel->isEmpty()) {
+                $this->removeConnection($connection);
+                return false;
             }
         }
 
