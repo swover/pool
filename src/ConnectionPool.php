@@ -125,11 +125,12 @@ class ConnectionPool
                 return $this->releaseConnection($connection);
             }
 
-            $this->releaseLock->pop(self::CHANNEL_TIMEOUT);
             if (!$this->channel->isEmpty()) {
+                $this->releaseLock->pop(self::CHANNEL_TIMEOUT);
                 $this->removeConnection($connection);
                 return false;
             }
+            $this->releaseLock->pop(self::CHANNEL_TIMEOUT);
         }
 
         $connector = [
