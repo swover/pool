@@ -64,8 +64,7 @@ class NormalConnectionPool implements PoolInterface
     
     public function getConnection()
     {
-        $connector = $this->pool->pop();
-
+        $connector = $this->pool->shift();
         if ($connector === false) {
             if ($this->connectionCount < $this->maxSize) {
                 return $this->createConnection();
@@ -123,7 +122,7 @@ class NormalConnectionPool implements PoolInterface
                 && $this->connectionCount <= 0) {
                 break;
             }
-            $connection = $this->pool->pop();
+            $connection = $this->pool->shift();
             if ($connection !== false) {
                 $this->removeConnection($connection);
             }
