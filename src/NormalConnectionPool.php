@@ -25,13 +25,6 @@ class NormalConnectionPool implements PoolInterface
     private $connector;
 
     /**
-     * The config for connector
-     *
-     * @var array
-     */
-    private $connectionConfig;
-
-    /**
      * Number of connections
      *
      * @var int
@@ -48,15 +41,13 @@ class NormalConnectionPool implements PoolInterface
      *
      * @param array $poolConfig
      * @param ConnectorInterface $connector
-     * @param array $connectionConfig
      */
-    public function __construct(array $poolConfig, ConnectorInterface $connector, array $connectionConfig)
+    public function __construct(array $poolConfig, ConnectorInterface $connector)
     {
         $this->minSize = $poolConfig['minSize'] ?? 1;
         $this->maxSize = $poolConfig['maxSize'] ?? 10;
         $this->idleTime = $poolConfig['idleTime'] ?? 120;
 
-        $this->connectionConfig = $connectionConfig;
         $this->connector = $connector;
 
         $this->pool = new \SplQueue();
@@ -85,7 +76,7 @@ class NormalConnectionPool implements PoolInterface
     public function createConnection()
     {
         $this->connectionCount++;
-        $connection = $this->connector->connect($this->connectionConfig);
+        $connection = $this->connector->connect();
         return $connection;
     }
 
