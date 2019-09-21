@@ -35,13 +35,6 @@ class ConnectionPool
     private $connector;
 
     /**
-     * The config for connector
-     *
-     * @var array
-     */
-    private $connectionConfig;
-
-    /**
      * Number of connections
      *
      * @var int
@@ -63,16 +56,14 @@ class ConnectionPool
      *
      * @param array $poolConfig
      * @param ConnectorInterface $connector
-     * @param array $connectionConfig
      */
-    public function __construct(array $poolConfig, ConnectorInterface $connector, array $connectionConfig)
+    public function __construct(array $poolConfig, ConnectorInterface $connector)
     {
         $this->minSize = $poolConfig['minSize'] ?? 3;
         $this->maxSize = $poolConfig['maxSize'] ?? 50;
         $this->waitTime = $poolConfig['waitTime'] ?? 5;
         $this->idleTime = $poolConfig['idleTime'] ?? 120;
 
-        $this->connectionConfig = $connectionConfig;
         $this->connector = $connector;
 
         $this->channel = new Channel($this->maxSize);
@@ -81,26 +72,20 @@ class ConnectionPool
 
     public function getConnection()
     {
-        if ($this->connectionCount < $this->minSize) {
-            return $this->createConnection();
-        }
-
-        if ($this->channel->isEmpty()
-            && $this->connectionCount < $this->maxSize) {
-            return $this->createConnection();
-        }
-
         $connector = $this->channel->pop($this->waitTime);
+
+        if ($connector === false) {
+            if ($this->connectionCount < $this->maxSize) {
+                return $this->createConnection();
+            }
+            throw new \Exception(sprintf('connection pop timeout, waitTime:%d, all connections: %d',
+                $this->waitTime, $this->connectionCount));
+        }
 
         if (time() - $connector['active_time'] >= $this->idleTime
             && !$this->channel->isEmpty()) {
             $this->removeConnection($connector['instance']);
             return $this->getConnection();
-        }
-
-        if ($connector === false) {
-            throw new \Exception(sprintf('connection pop timeout, waitTime:%d, all connections: %d',
-                $this->waitTime, $this->connectionCount));
         }
 
         return $connector['instance'];
@@ -109,7 +94,7 @@ class ConnectionPool
     public function createConnection()
     {
         $this->connectionCount++;
-        $connection = $this->connector->connect($this->connectionConfig);
+        $connection = $this->connector->connect();
         return $connection;
     }
 
@@ -164,7 +149,7 @@ class ConnectionPool
                 }
                 $connection = $this->channel->pop(static::CHANNEL_TIMEOUT);
                 if ($connection !== false) {
-                    $this->connector->disconnect($connection);
+                    $this->removeConnection($connection);
                 }
             }
             $this->channel->close();
