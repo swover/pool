@@ -2,7 +2,7 @@
 
 namespace Swover\Pool;
 
-interface ConnectorPoolInterface
+interface PoolInterface
 {
     public function getConnection();
 

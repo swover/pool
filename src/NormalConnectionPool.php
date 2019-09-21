@@ -2,7 +2,7 @@
 
 namespace Swover\Pool;
 
-class NormalConnectionPool
+class NormalConnectionPool implements PoolInterface
 {
     /**
      * @var int
@@ -64,15 +64,6 @@ class NormalConnectionPool
     
     public function getConnection()
     {
-        if ($this->connectionCount < $this->minSize) {
-            return $this->createConnection();
-        }
-
-        if ($this->pool->isEmpty()
-            && $this->connectionCount < $this->maxSize) {
-            return $this->createConnection();
-        }
-
         $connector = $this->pool->pop();
 
         if ($connector === false) {
@@ -122,10 +113,7 @@ class NormalConnectionPool
     public function removeConnection($connection)
     {
         $this->connectionCount--;
-        try {
-            $this->connector->disconnect($connection);
-        } catch (\Throwable $e) {
-        }
+        $this->connector->disconnect($connection);
     }
 
     public function close()
@@ -137,7 +125,7 @@ class NormalConnectionPool
             }
             $connection = $this->pool->pop();
             if ($connection !== false) {
-                $this->connector->disconnect($connection);
+                $this->removeConnection($connection);
             }
         }
         $this->pool = null;
