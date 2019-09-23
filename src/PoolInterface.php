@@ -12,5 +12,5 @@ interface PoolInterface
 
     public function removeConnection($connection);
 
-    public function close();
+    public function closeConnectionPool();
 }

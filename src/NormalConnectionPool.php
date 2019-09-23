@@ -107,7 +107,7 @@ class NormalConnectionPool implements PoolInterface
         $this->connector->disconnect($connection);
     }
 
-    public function close()
+    public function closeConnectionPool()
     {
         while (true) {
             if ($this->pool->isEmpty()
@@ -126,6 +126,6 @@ class NormalConnectionPool implements PoolInterface
 
     public function __destruct()
     {
-        $this->close();
+        $this->closeConnectionPool();
     }
 }
