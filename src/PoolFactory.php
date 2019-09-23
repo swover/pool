@@ -26,9 +26,17 @@ class PoolFactory
         try {
             $connection = $this->pool->getConnection();
             return call_user_func_array([$connection, $name], $arguments);
-        } catch (\Exception $e) {
-            $connection = $this->exception($e);
-            return call_user_func_array([$connection, $name], $arguments);
+        } catch (\Throwable $e) {
+            $this->pool->removeConnection($connection);
+            $connection = null;
+            try {
+                $connection = $this->retrtException($e);
+                return call_user_func_array([$connection, $name], $arguments);
+            } catch (\Throwable $e) {
+                $this->pool->removeConnection($connection);
+                $connection = null;
+                throw $e;
+            }
         } finally {
             if ($connection != null) {
                 $this->pool->releaseConnection($connection);
@@ -36,7 +44,7 @@ class PoolFactory
         }
     }
 
-    private function exception(\Exception $error)
+    private function retrtException(\Throwable $error)
     {
         if (!isset($this->config['retry_exception']) || !is_array($this->config['retry_exception']))
             throw $error;
@@ -45,7 +53,7 @@ class PoolFactory
             if (strpos($error->getMessage(), $exception) === false)
                 continue;
 
-            return $this->pool->createConnection();
+            return $this->pool->getConnection();
         }
 
         throw $error;
