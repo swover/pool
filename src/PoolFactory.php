@@ -27,18 +27,22 @@ class PoolFactory
             $connection = $this->pool->getConnection();
             return call_user_func_array([$connection, $name], $arguments);
         } catch (\Throwable $e) {
-            $this->pool->removeConnection($connection);
-            $connection = null;
+            if ($connection ?? false) {
+                $this->pool->removeConnection($connection);
+                $connection = null;
+            }
             try {
                 $connection = $this->retrtException($e);
                 return call_user_func_array([$connection, $name], $arguments);
             } catch (\Throwable $e) {
-                $this->pool->removeConnection($connection);
-                $connection = null;
+                if ($connection ?? false) {
+                    $this->pool->removeConnection($connection);
+                    $connection = null;
+                }
                 throw $e;
             }
         } finally {
-            if ($connection != null) {
+            if ($connection ?? false) {
                 $this->pool->releaseConnection($connection);
             }
         }
