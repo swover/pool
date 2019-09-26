@@ -44,7 +44,7 @@ class ConnectionPool
     /**
      * @var Channel
      */
-    private $channel;
+    private $pool;
 
     /**
      * @var Channel
@@ -66,13 +66,13 @@ class ConnectionPool
 
         $this->connector = $connector;
 
-        $this->channel = new Channel($this->maxSize);
+        $this->pool = new Channel($this->maxSize);
         $this->releaseLock = new Channel(1);
     }
 
     public function getConnection()
     {
-        $connector = $this->channel->pop($this->waitTime);
+        $connector = $this->pool->pop($this->waitTime);
 
         if ($connector === false) {
             if ($this->connectionCount < $this->maxSize) {
@@ -83,7 +83,7 @@ class ConnectionPool
         }
 
         if (time() - $connector['active_time'] >= $this->idleTime
-            && !$this->channel->isEmpty()) {
+            && !$this->pool->isEmpty()) {
             $this->removeConnection($connector['instance']);
             return $this->getConnection();
         }
@@ -100,7 +100,7 @@ class ConnectionPool
 
     public function releaseConnection($connection)
     {
-        if ($this->channel->isFull()) {
+        if ($this->pool->isFull()) {
             $this->removeConnection($connection);
             return false;
         }
@@ -110,7 +110,7 @@ class ConnectionPool
                 return $this->releaseConnection($connection);
             }
 
-            if (!$this->channel->isEmpty()) {
+            if (!$this->pool->isEmpty()) {
                 $this->releaseLock->pop(self::CHANNEL_TIMEOUT);
                 $this->removeConnection($connection);
                 return false;
@@ -122,7 +122,7 @@ class ConnectionPool
             'active_time' => time(),
             'instance' => $connection
         ];
-        if ($this->channel->push($connector, self::CHANNEL_TIMEOUT) === false) {
+        if ($this->pool->push($connector, self::CHANNEL_TIMEOUT) === false) {
             $this->removeConnection($connection);
             return false;
         }
@@ -144,15 +144,15 @@ class ConnectionPool
     {
         go(function () {
             while (true) { //TODO use pop
-                if ($this->channel->isEmpty()) {
+                if ($this->pool->isEmpty()) {
                     break;
                 }
-                $connection = $this->channel->pop(static::CHANNEL_TIMEOUT);
+                $connection = $this->pool->pop(static::CHANNEL_TIMEOUT);
                 if ($connection !== false) {
                     $this->removeConnection($connection);
                 }
             }
-            $this->channel->close();
+            $this->pool->close();
         });
         return true;
     }
