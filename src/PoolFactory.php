@@ -32,7 +32,7 @@ class PoolFactory
                 $connection = null;
             }
             try {
-                $connection = $this->retrtException($e);
+                $connection = $this->retryException($e);
                 return call_user_func_array([$connection, $name], $arguments);
             } catch (\Throwable $e) {
                 if ($connection ?? false) {
@@ -48,7 +48,7 @@ class PoolFactory
         }
     }
 
-    private function retrtException(\Throwable $error)
+    private function retryException(\Throwable $error)
     {
         if (!isset($this->config['retry_exception']) || !is_array($this->config['retry_exception']))
             throw $error;
