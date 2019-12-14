@@ -72,6 +72,11 @@ class ConnectionPool
 
     public function getConnection()
     {
+        if ($this->connectionCount < $this->minSize
+            && $this->pool->isEmpty()) {
+            return $this->createConnection();
+        }
+
         $connector = $this->pool->pop($this->waitTime);
 
         if ($connector === false) {
