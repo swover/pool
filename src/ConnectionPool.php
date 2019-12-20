@@ -7,8 +7,6 @@ use Swoole\Coroutine\Channel;
 
 class ConnectionPool
 {
-    const CHANNEL_TIMEOUT = 0.001;
-
     /**
      * @var int
      */
@@ -47,11 +45,6 @@ class ConnectionPool
     private $pool;
 
     /**
-     * @var Channel
-     */
-    private $releaseLock;
-
-    /**
      * ConnectionPool constructor.
      *
      * @param array $poolConfig
@@ -59,15 +52,14 @@ class ConnectionPool
      */
     public function __construct(array $poolConfig, ConnectorInterface $connector)
     {
-        $this->minSize = $poolConfig['minSize'] ?? 3;
-        $this->maxSize = $poolConfig['maxSize'] ?? 50;
+        $this->minSize = $poolConfig['minSize'] ?? 1;
+        $this->maxSize = $poolConfig['maxSize'] ?? 10;
         $this->waitTime = $poolConfig['waitTime'] ?? 5;
         $this->idleTime = $poolConfig['idleTime'] ?? 120;
 
         $this->connector = $connector;
 
         $this->pool = new Channel($this->maxSize);
-        $this->releaseLock = new Channel(1);
     }
 
     public function getConnection()
@@ -77,9 +69,9 @@ class ConnectionPool
             return $this->createConnection();
         }
 
-        $connector = $this->pool->pop($this->waitTime);
+        $connection = $this->popConnection($this->waitTime);
 
-        if ($connector === false) {
+        if ($connection === false) {
             if ($this->connectionCount < $this->maxSize) {
                 return $this->createConnection();
             }
@@ -87,13 +79,13 @@ class ConnectionPool
                 $this->waitTime, $this->connectionCount));
         }
 
-        if (time() - $connector['active_time'] >= $this->idleTime
+        if (time() - $connection['active_time'] >= $this->idleTime
             && !$this->pool->isEmpty()) {
-            $this->removeConnection($connector['instance']);
+            $this->removeConnection($connection['instance']);
             return $this->getConnection();
         }
 
-        return $connector['instance'];
+        return $connection['instance'];
     }
 
     public function createConnection()
@@ -110,31 +102,23 @@ class ConnectionPool
             return false;
         }
 
-        if ($this->connectionCount > $this->minSize) {
-            if ($this->releaseLock->push(1, self::CHANNEL_TIMEOUT) === false) {
-                return $this->releaseConnection($connection);
-            }
-
-            if (!$this->pool->isEmpty()) {
-                $this->releaseLock->pop(self::CHANNEL_TIMEOUT);
-                $this->removeConnection($connection);
-                return false;
-            }
-            $this->releaseLock->pop(self::CHANNEL_TIMEOUT);
+        if ($this->connectionCount > $this->minSize && !$this->pool->isEmpty()) {
+            $this->removeConnection($connection);
+            return false;
         }
 
         $connector = [
             'active_time' => time(),
             'instance' => $connection
         ];
-        if ($this->pool->push($connector, self::CHANNEL_TIMEOUT) === false) {
+        if ($this->pushConnection($connector, 0.001) === false) {
             $this->removeConnection($connection);
             return false;
         }
         return true;
     }
 
-    private function removeConnection($connection)
+    public function removeConnection($connection)
     {
         $this->connectionCount--;
         go(function () use ($connection) {
@@ -145,14 +129,30 @@ class ConnectionPool
         });
     }
 
-    public function close()
+    private function popConnection($waitTime)
+    {
+        return $this->pool->pop($waitTime);
+    }
+
+    /**
+     * @param $connection
+     * @param int $waitTime wait seconds
+     * @return bool
+     */
+    private function pushConnection($connection, $waitTime = 0)
+    {
+        return $this->pool->push($connection, $waitTime);
+    }
+
+    public function closeConnectionPool()
     {
         go(function () {
-            while (true) { //TODO use pop
-                if ($this->pool->isEmpty()) {
+            while (true) {
+                if ($this->pool->isEmpty()
+                    && $this->connectionCount <= 0) {
                     break;
                 }
-                $connection = $this->pool->pop(static::CHANNEL_TIMEOUT);
+                $connection = $this->pool->pop(0.001);
                 if ($connection !== false) {
                     $this->removeConnection($connection);
                 }
@@ -164,6 +164,6 @@ class ConnectionPool
 
     public function __destruct()
     {
-        $this->close();
+        $this->closeConnectionPool();
     }
 }

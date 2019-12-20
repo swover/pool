@@ -67,17 +67,21 @@ class NormalConnectionPool implements PoolInterface
         }
 
         $connection = $this->popConnection($this->waitTime);
+
         if ($connection === false) {
             if ($this->connectionCount < $this->maxSize) {
                 return $this->createConnection();
             }
-            throw new \Exception('Can not get connection!');
+            throw new \Exception(sprintf('connection pop timeout, waitTime:%d, all connections: %d',
+                $this->waitTime, $this->connectionCount));
         }
+
         if (time() - $connection['active_time'] >= $this->idleTime
             && !$this->pool->isEmpty()) {
             $this->removeConnection($connection['instance']);
             return $this->getConnection();
         }
+
         return $connection['instance'];
     }
 
@@ -90,23 +94,20 @@ class NormalConnectionPool implements PoolInterface
 
     public function releaseConnection($connection)
     {
-        if ($this->connectionCount >= $this->maxSize) { // isFull
+        if ($this->pool->count() >= $this->maxSize) {
             $this->removeConnection($connection);
             return false;
         }
 
-        if ($this->connectionCount > $this->minSize) {
-            if (!$this->pool->isEmpty()) {
-                $this->removeConnection($connection);
-                return false;
-            }
+        if ($this->connectionCount > $this->minSize && !$this->pool->isEmpty()) {
+            $this->removeConnection($connection);
+            return false;
         }
 
         $connector = [
             'active_time' => time(),
             'instance' => $connection
         ];
-        //TODO 阻塞时，其他人也会判定为空 或 小于size  可以先加，然后再减少
         if ($this->pushConnection($connector, 0.001) === false) {
             $this->removeConnection($connection);
             return false;
@@ -122,7 +123,7 @@ class NormalConnectionPool implements PoolInterface
 
     private function popConnection($waitTime)
     {
-        $waitTime = $waitTime * 1000000;
+        $waitTime = $waitTime * 1000 * 1000;
         do {
             try {
                 return $this->pool->shift();
@@ -141,7 +142,7 @@ class NormalConnectionPool implements PoolInterface
      */
     private function pushConnection($connection, $waitTime = 0)
     {
-        $waitTime = $waitTime * 1000000;
+        $waitTime = $waitTime * 1000 * 1000;
         do {
             try {
                 $this->pool->push($connection);
