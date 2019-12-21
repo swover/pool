@@ -12,19 +12,7 @@ class PoolFactory
     {
         $poolConfig = isset($config['pool_config']) ? $config['pool_config'] : [];
 
-        $poolType = 'normal';
-
-        if (class_exists('\Swoole\Coroutine') && class_exists('\Swoole\Channel')) {
-            if (method_exists('\Swoole\Coroutine', 'getCid') && \Swoole\Coroutine::getCid() > 0) {
-                $poolType = 'channel';
-            }
-        }
-
-        if (($poolConfig['pool_type'] ?? $poolType) == 'channel') {
-            $this->pool = new ConnectionPool($poolConfig, $handler);
-        } else {
-            return $this->pool = new NormalConnectionPool($poolConfig, $handler);
-        }
+        $this->pool = new ConnectionPool($poolConfig, $handler);
     }
 
     public function __call($name, $arguments)

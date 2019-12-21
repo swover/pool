@@ -3,7 +3,9 @@
 namespace Swover\Pool;
 
 
-use Swoole\Coroutine\Channel;
+use Swover\Pool\Handler\Channel;
+use Swover\Pool\Handler\PoolType;
+use Swover\Pool\Handler\SplQueue;
 
 class ConnectionPool
 {
@@ -40,7 +42,7 @@ class ConnectionPool
     private $connectionCount = 0;
 
     /**
-     * @var Channel
+     * @var PoolType
      */
     private $pool;
 
@@ -59,7 +61,24 @@ class ConnectionPool
 
         $this->connector = $connector;
 
-        $this->pool = new Channel($this->maxSize);
+        $this->initPool();
+    }
+
+    protected function initPool()
+    {
+        $poolType = 'normal';
+
+        if (class_exists('\Swoole\Coroutine') && class_exists('\Swoole\Channel')) {
+            if (method_exists('\Swoole\Coroutine', 'getCid') && \Swoole\Coroutine::getCid() > 0) {
+                $poolType = 'channel';
+            }
+        }
+
+        if (($poolConfig['pool_type'] ?? $poolType) == 'channel') {
+            $this->pool = new Channel($this->maxSize);
+        } else {
+            $this->pool = new SplQueue($this->maxSize);
+        }
     }
 
     public function getConnection()
@@ -69,8 +88,7 @@ class ConnectionPool
             return $this->createConnection();
         }
 
-        $connection = $this->popConnection($this->waitTime);
-
+        $connection = $this->pool->pop($this->waitTime);
         if ($connection === false) {
             if ($this->connectionCount < $this->maxSize) {
                 return $this->createConnection();
@@ -111,7 +129,7 @@ class ConnectionPool
             'active_time' => time(),
             'instance' => $connection
         ];
-        if ($this->pushConnection($connector, 0.001) === false) {
+        if ($this->pool->push($connector, 0.001) === false) {
             $this->removeConnection($connection);
             return false;
         }
@@ -121,32 +139,17 @@ class ConnectionPool
     public function removeConnection($connection)
     {
         $this->connectionCount--;
-        go(function () use ($connection) {
+        // go(function () use ($connection) {
             try {
                 $this->connector->disconnect($connection);
             } catch (\Throwable $e) {
             }
-        });
-    }
-
-    private function popConnection($waitTime)
-    {
-        return $this->pool->pop($waitTime);
-    }
-
-    /**
-     * @param $connection
-     * @param int $waitTime wait seconds
-     * @return bool
-     */
-    private function pushConnection($connection, $waitTime = 0)
-    {
-        return $this->pool->push($connection, $waitTime);
+        // });
     }
 
     public function closeConnectionPool()
     {
-        go(function () {
+        // go(function () {
             while (true) {
                 if ($this->pool->isEmpty()
                     && $this->connectionCount <= 0) {
@@ -158,7 +161,7 @@ class ConnectionPool
                 }
             }
             $this->pool->close();
-        });
+        // });
         return true;
     }
 
