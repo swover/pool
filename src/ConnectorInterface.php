@@ -9,4 +9,6 @@ interface ConnectorInterface
     public function disconnect($connection);
 
     public function reset($connection);
+
+    public function ping($connection);
 }

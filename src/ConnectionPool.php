@@ -47,6 +47,11 @@ class ConnectionPool
     private $pool;
 
     /**
+     * @var array
+     */
+    private $config = [];
+
+    /**
      * ConnectionPool constructor.
      *
      * @param array $poolConfig
@@ -54,6 +59,8 @@ class ConnectionPool
      */
     public function __construct(array $poolConfig, ConnectorInterface $connector)
     {
+        $this->config = $poolConfig;
+
         $this->minSize = $poolConfig['minSize'] ?? 1;
         $this->maxSize = $poolConfig['maxSize'] ?? 10;
         $this->waitTime = $poolConfig['waitTime'] ?? 5;
@@ -74,7 +81,7 @@ class ConnectionPool
             }
         }
 
-        if (($poolConfig['pool_type'] ?? $poolType) == 'channel') {
+        if (($poolConfig['poolType'] ?? $poolType) == 'channel') {
             $this->pool = new Channel($this->maxSize);
         } else {
             $this->pool = new SplQueue($this->maxSize);
@@ -139,34 +146,66 @@ class ConnectionPool
     public function removeConnection($connection)
     {
         $this->connectionCount--;
-        // go(function () use ($connection) {
-            try {
-                $this->connector->disconnect($connection);
-            } catch (\Throwable $e) {
-            }
-        // });
+        try {
+            $this->connector->disconnect($connection);
+        } catch (\Throwable $e) {
+        }
     }
 
     public function closeConnectionPool()
     {
-        // go(function () {
-            while (true) {
-                if ($this->pool->isEmpty()
-                    && $this->connectionCount <= 0) {
-                    break;
-                }
-                $connection = $this->pool->pop(0.001);
-                if ($connection !== false) {
-                    $this->removeConnection($connection);
-                }
+        while (true) {
+            if ($this->pool->isEmpty()
+                && $this->connectionCount <= 0) {
+                break;
             }
-            $this->pool->close();
-        // });
+            $connection = $this->pool->pop(0.001);
+            if ($connection !== false) {
+                $this->removeConnection($connection);
+            }
+        }
+        $this->pool->close();
         return true;
     }
 
     public function __destruct()
     {
         $this->closeConnectionPool();
+    }
+
+    public function __call($name, $arguments)
+    {
+        $connection = null;
+        try {
+            $connection = $this->getConnection();
+            return call_user_func_array([$connection, $name], $arguments);
+        } catch (\Throwable $e) {
+            if (isset($this->config['failCallback']) && is_callable($this->config['failCallback']) ) {
+                $res = call_user_func_array($this->config['failCallback'], [$connection, $e]);
+            } else {
+                $res = $this->connector->ping($connection);
+            }
+
+            if ($res !== true) {
+                $this->removeConnection($connection);
+                $connection = null;
+            }
+
+            try {
+                $connection = $connection ? : $this->getConnection();
+                return call_user_func_array([$connection, $name], $arguments);
+            } catch (\Throwable $e) {
+                $res = $this->connector->ping($connection);
+                if ($res !== true) {
+                    $this->removeConnection($connection);
+                    $connection = null;
+                }
+                throw $e;
+            }
+        } finally {
+            if ($connection != null) {
+                $this->releaseConnection($connection);
+            }
+        }
     }
 }
