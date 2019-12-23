@@ -4,7 +4,7 @@ namespace Swover\Pool;
 
 
 use Swover\Pool\Handler\Channel;
-use Swover\Pool\Handler\PoolType;
+use Swover\Pool\Handler\PoolHandler;
 use Swover\Pool\Handler\SplQueue;
 
 class ConnectionPool
@@ -12,17 +12,17 @@ class ConnectionPool
     /**
      * @var int
      */
-    private $minSize = 3;
+    private $minSize = 1;
 
     /**
      * @var int
      */
-    private $maxSize = 50;
+    private $maxSize = 10;
 
     /**
      * @var int
      */
-    private $waitTime = 5;
+    private $waitTime = 3;
 
     /**
      * @var int
@@ -42,7 +42,7 @@ class ConnectionPool
     private $connectionCount = 0;
 
     /**
-     * @var PoolType
+     * @var PoolHandler
      */
     private $pool;
 
@@ -61,10 +61,10 @@ class ConnectionPool
     {
         $this->config = $poolConfig;
 
-        $this->minSize = $poolConfig['minSize'] ?? 1;
-        $this->maxSize = $poolConfig['maxSize'] ?? 10;
-        $this->waitTime = $poolConfig['waitTime'] ?? 5;
-        $this->idleTime = $poolConfig['idleTime'] ?? 120;
+        $this->minSize = $poolConfig['minSize'] ?? $this->minSize;
+        $this->maxSize = $poolConfig['maxSize'] ?? $this->maxSize;
+        $this->waitTime = $poolConfig['waitTime'] ?? $this->waitTime;
+        $this->idleTime = $poolConfig['idleTime'] ?? $this->idleTime;
 
         $this->connector = $connector;
 
@@ -82,12 +82,17 @@ class ConnectionPool
         }
 
         if (($poolConfig['poolType'] ?? $poolType) == 'channel') {
-            $this->pool = new Channel($this->maxSize);
-        } else {
-            $this->pool = new SplQueue($this->maxSize);
+            return $this->pool = new Channel($this->maxSize);
         }
+        return $this->pool = new SplQueue($this->maxSize);
     }
 
+    /**
+     * Get active connection from pool
+     *
+     * @return mixed
+     * @throws \Exception
+     */
     public function getConnection()
     {
         if ($this->connectionCount < $this->minSize
@@ -113,6 +118,10 @@ class ConnectionPool
         return $connection['instance'];
     }
 
+    /**
+     * Create a new connection
+     * @return mixed
+     */
     public function createConnection()
     {
         $this->connectionCount++;
@@ -120,6 +129,11 @@ class ConnectionPool
         return $connection;
     }
 
+    /**
+     * Release a connection to pool, and update last active time
+     * @param $connection
+     * @return bool
+     */
     public function releaseConnection($connection)
     {
         if ($this->pool->isFull()) {
@@ -143,6 +157,10 @@ class ConnectionPool
         return true;
     }
 
+    /**
+     * Remove and disconnect a connection
+     * @param $connection
+     */
     public function removeConnection($connection)
     {
         $this->connectionCount--;
@@ -152,6 +170,10 @@ class ConnectionPool
         }
     }
 
+    /**
+     * Remove all connection and close pool
+     * @return bool
+     */
     public function closeConnectionPool()
     {
         while (true) {

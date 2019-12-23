@@ -2,16 +2,12 @@
 
 namespace Swover\Pool\Handler;
 
-class Channel implements PoolType
+class Channel extends PoolHandler
 {
-    protected $handler = null;
-
-    protected $length = 0;
-
     public function __construct($size)
     {
+        parent::__construct($size);
         $this->handler = new \Swoole\Coroutine\Channel($size);
-        $this->length = $size;
     }
 
     public function pop($waitTime)
@@ -41,6 +37,7 @@ class Channel implements PoolType
 
     public function close()
     {
-        return $this->handler->close();
+        $this->handler->close();
+        return $this->handler = null;
     }
 }

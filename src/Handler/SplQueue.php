@@ -2,17 +2,13 @@
 
 namespace Swover\Pool\Handler;
 
-class SplQueue implements PoolType
+class SplQueue extends PoolHandler
 {
-
-    protected $handler = null;
-
-    protected $length = 0;
 
     public function __construct($size)
     {
+        parent::__construct($size);
         $this->handler = new \SplQueue();
-        $this->length = $size;
     }
 
     public function pop($waitTime)
@@ -34,7 +30,8 @@ class SplQueue implements PoolType
         $waitTime = $waitTime * 1000 * 1000;
         do {
             try {
-                //TODO 判断是否已满
+                if ($this->isFull()) continue;
+
                 $this->handler->push($object);
                 return true;
             } catch (\Throwable $e) {
@@ -52,7 +49,7 @@ class SplQueue implements PoolType
 
     public function isFull()
     {
-        return $this->handler->count() >= $this->length;
+        return $this->handler->count() >= $this->size;
     }
 
     public function isEmpty()
