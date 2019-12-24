@@ -73,15 +73,21 @@ class ConnectionPool
 
     protected function initPool()
     {
-        $poolType = 'normal';
+        $poolHandler = 'normal';
 
         if (class_exists('\Swoole\Coroutine') && class_exists('\Swoole\Channel')) {
             if (method_exists('\Swoole\Coroutine', 'getCid') && \Swoole\Coroutine::getCid() > 0) {
-                $poolType = 'channel';
+                $poolHandler = 'channel';
             }
         }
 
-        if (($poolConfig['poolType'] ?? $poolType) == 'channel') {
+        $poolHandler = $poolConfig['poolHandler'] ?? $poolHandler;
+
+        if (is_object($poolHandler) && $poolHandler instanceof PoolHandler) {
+            return $this->pool = $poolHandler;
+        }
+
+        if ($poolHandler == 'channel') {
             return $this->pool = new Channel($this->maxSize);
         }
         return $this->pool = new SplQueue($this->maxSize);
