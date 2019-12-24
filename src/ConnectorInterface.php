@@ -4,6 +4,8 @@ namespace Swover\Pool;
 
 interface ConnectorInterface
 {
+    public function __construct(array $config);
+
     public function connect();
 
     public function disconnect($connection);
