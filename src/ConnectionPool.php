@@ -81,7 +81,7 @@ class ConnectionPool
             }
         }
 
-        $poolHandler = $poolConfig['poolHandler'] ?? $poolHandler;
+        $poolHandler = $this->config['poolHandler'] ?? $poolHandler;
 
         if (is_object($poolHandler) && $poolHandler instanceof PoolHandler) {
             return $this->pool = $poolHandler;
